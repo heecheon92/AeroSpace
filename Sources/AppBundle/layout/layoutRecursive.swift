@@ -31,12 +31,13 @@ extension TreeNode {
             case .window(let window):
                 if window.windowId != currentlyManipulatedWithMouseWindowId {
                     lastAppliedLayoutVirtualRect = virtual
-                    if window.isFullscreen && window == context.workspace.rootTilingContainer.mostRecentWindowRecursive {
+                    if window.isFullscreen &&
+                        (window.isCenteredFullscreen || window == context.workspace.rootTilingContainer.mostRecentWindowRecursive)
+                    {
                         lastAppliedLayoutPhysicalRect = nil
                         window.layoutFullscreen(context)
                     } else {
-                        let animateFromCentered = window.shouldAnimateNextLayoutFromCentered ||
-                            (window.isFullscreen && window.isCenteredFullscreen && window.centeredFullscreenAnimationEnabled)
+                        let animateFromCentered = window.shouldAnimateNextLayoutFromCentered
                         window.shouldAnimateNextLayoutFromCentered = false
                         window.isFullscreen = false
                         window.isCenteredFullscreen = false

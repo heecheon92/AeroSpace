@@ -21,14 +21,15 @@ aerospace fullscreen [-h|--help] off [--window-id <window-id>] [--fail-if-noop]
 // tag::body[]
 {manpurpose}
 
-Switching to a different tiling window within the same workspace while the current focused window is in fullscreen mode results in the fullscreen window exiting fullscreen mode.
+Switching to a different tiling window within the same workspace while the current focused window is in ordinary fullscreen mode results in the fullscreen window exiting fullscreen mode.
 
 `--centered` uses the fullscreen state while displaying a centered window.
 Its width and height default independently to 50% of the selected monitor rectangle and can be set with `--width` and `--height`.
 Percentages must include `%`, may contain decimals, and must be greater than 0% and no greater than 100%.
 The selected monitor rectangle includes outer gaps unless `--no-outer-gaps` is specified.
 The window keeps its place in the tiling tree, and leaving centered fullscreen restores that tile.
-Toggling an identical centered size exits fullscreen; requesting different dimensions or outer-gap handling retargets the centered window instead.
+For tiled windows, unlike ordinary fullscreen, centered fullscreen remains active when focus moves to another window or workspace.
+Use `fullscreen off` or toggle an identical centered size to exit; requesting different dimensions or outer-gap handling retargets the centered window instead.
 Centered fullscreen transitions are disabled by default.
 `--animation on` enables transitions into, between, and out of centered fullscreen and remains the exit preference for that active centered window; Reduce Motion in macOS always disables animation.
 

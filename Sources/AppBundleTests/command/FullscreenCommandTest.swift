@@ -159,6 +159,93 @@ final class FullscreenCommandTest: XCTestCase {
         assertEquals(target.isFullscreen, true)
     }
 
+    func testCenteredFullscreenPersistsAcrossPeerAndWorkspaceFocusChanges() async throws {
+        let workspace = Workspace.get(byName: name)
+        let root = workspace.rootTilingContainer
+        let target = TestWindow.new(id: 1, parent: root, adaptiveWeight: 2)
+        let peer = TestWindow.new(id: 2, parent: root, adaptiveWeight: 1)
+        let otherWorkspace = Workspace.get(byName: "other")
+        let otherWindow = TestWindow.new(id: 3, parent: otherWorkspace.rootTilingContainer)
+        assertEquals(target.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+
+        let originalTargetRect = (try await target.getAxRect(.nonCancellable)).orDie()
+        let originalPeerRect = (try await peer.getAxRect(.nonCancellable)).orDie()
+        let originalLayout = root.layoutDescription
+        let originalHWeights = root.children.map(\.hWeight)
+        let originalVWeights = root.children.map(\.vWeight)
+        let centeredRect = Rect(topLeftX: 384, topLeftY: 162, width: 1152, height: 756)
+
+        _ = await parseCommand("fullscreen on --centered --width 60% --height 70%").cmdOrDie
+            .run(.defaultEnv, .emptyStdin)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertEquals(target.isCenteredFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), centeredRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+
+        assertEquals(peer.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertEquals(target.isCenteredFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), centeredRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+
+        assertEquals(otherWindow.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertEquals(target.isCenteredFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), centeredRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+
+        assertEquals(workspace.focusWorkspace(), true)
+        assertEquals(focus.windowOrNil?.windowId, peer.windowId)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertEquals(target.isCenteredFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), centeredRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+
+        assertEquals(target.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertEquals(target.isCenteredFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), centeredRect)
+        assertEquals(root.layoutDescription, originalLayout)
+        assertEquals(root.children.map(\.hWeight), originalHWeights)
+        assertEquals(root.children.map(\.vWeight), originalVWeights)
+
+        _ = await parseCommand("fullscreen off").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, false)
+        assertEquals(target.isCenteredFullscreen, false)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), originalTargetRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+    }
+
+    func testRegularFullscreenExitsWhenPeerTakesFocus() async throws {
+        let workspace = Workspace.get(byName: name)
+        let root = workspace.rootTilingContainer
+        let target = TestWindow.new(id: 1, parent: root, adaptiveWeight: 2)
+        let peer = TestWindow.new(id: 2, parent: root, adaptiveWeight: 1)
+        assertEquals(target.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+
+        let originalTargetRect = (try await target.getAxRect(.nonCancellable)).orDie()
+        let originalPeerRect = (try await peer.getAxRect(.nonCancellable)).orDie()
+        _ = await parseCommand("fullscreen on").cmdOrDie.run(.defaultEnv, .emptyStdin)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, true)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), Rect(topLeftX: 0, topLeftY: 0, width: 1920, height: 1080))
+
+        assertEquals(peer.focusWindow(), true)
+        try await workspace.layoutWorkspace()
+        assertEquals(target.isFullscreen, false)
+        assertEquals(target.isCenteredFullscreen, false)
+        assertRectEquals(try await target.getAxRect(.nonCancellable), originalTargetRect)
+        assertRectEquals(try await peer.getAxRect(.nonCancellable), originalPeerRect)
+    }
+
     func testCenteredFullscreenHitTestingUsesDisplayedRectAndLeavesVacatedTileEmpty() async throws {
         let workspace = Workspace.get(byName: name)
         let root = workspace.rootTilingContainer
