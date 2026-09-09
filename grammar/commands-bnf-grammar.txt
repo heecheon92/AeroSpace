@@ -44,8 +44,8 @@ aerospace -h;
     | focus-monitor [--wrap-around] (next|prev) [--wrap-around]
     | focus-monitor <monitor_pattern>...
 
-    | fullscreen [--no-outer-gaps|--window-id <window_id>]...
-    | fullscreen [--no-outer-gaps|--fail-if-noop|--window-id <window_id>]... on [--no-outer-gaps|--fail-if-noop|--window-id <window_id>]...
+    | fullscreen [<fullscreen_flag>]...
+    | fullscreen [<fullscreen_flag>|--fail-if-noop]... on [<fullscreen_flag>|--fail-if-noop]...
     | fullscreen [--fail-if-noop|--window-id <window_id>]... off [--fail-if-noop|--window-id <window_id>]...
 
     | join-with [--window-id <window_id>] (left|down|up|right)
@@ -123,8 +123,10 @@ aerospace -h;
 <mode_id> ::= {{{ aerospace config --get mode --keys }}};
 <workspace> ::= {{{ aerospace list-workspaces --monitor all --empty no }}};
 <number> ::= {{{ true }}};
+<percentage> ::= {{{ true }}};
 <monitor_pattern> ::= {{{ true }}};
 <layouts> ::= h_tiles|v_tiles|h_accordion|v_accordion|tiles|accordion|horizontal|vertical|tiling|floating;
+<fullscreen_flag> ::= --no-outer-gaps|--centered|--width <percentage>|--height <percentage>|--animation (on|off)|--window-id <window_id>;
 
 <list_workspaces1_flag> ::= --visible [no] | --empty [no] | --format <output_format> | --format <output_format> | --count | --json;
 

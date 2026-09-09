@@ -77,6 +77,7 @@ final class MacWindow: Window {
     //                        If you are unsure, it's better to pass `false`
     @MainActor
     func garbageCollect(skipClosedWindowsCache: Bool) {
+        cancelCenteredFullscreenTransition()
         if MacWindow.allWindowsMap.removeValue(forKey: windowId) == nil {
             return
         }
@@ -121,6 +122,7 @@ final class MacWindow: Window {
     // todo it's part of the window layout and should be moved to layoutRecursive.swift
     @MainActor
     func hideInCorner(_ corner: OptimalHideCorner) async throws {
+        cancelCenteredFullscreenTransition()
         guard let nodeMonitor else { return }
         // Don't accidentally override prevUnhiddenEmulationPosition in case of subsequent `hideInCorner` calls
         if !isHiddenInCorner {
@@ -192,6 +194,14 @@ final class MacWindow: Window {
 
     override func setAxFrame(_ topLeft: CGPoint?, _ size: CGSize?) {
         macApp.setAxFrame(windowId, topLeft, size)
+    }
+
+    override func cancelPendingAxFrame() {
+        macApp.cancelSetFrame(windowId)
+    }
+
+    override func setAxFrameCentered(_ requestedRect: Rect, in monitorRect: Rect) {
+        macApp.setAxFrameCentered(windowId, requestedRect, in: monitorRect)
     }
 
     override func getAxRect(_ cm: CancellationMode) async throws -> Rect? {

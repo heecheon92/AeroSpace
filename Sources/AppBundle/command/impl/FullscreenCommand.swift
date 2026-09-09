@@ -10,12 +10,32 @@ struct FullscreenCommand: Command {
         guard let window = target.windowOrNil else {
             return .fail(io.err(noWindowIsFocused))
         }
+        let wasCenteredFullscreen = window.isFullscreen && window.isCenteredFullscreen
+        let requestedCenteredFullscreen = args.centered
+        let requestedWidthPercent = CGFloat(args.effectiveWidthPercent)
+        let requestedHeightPercent = CGFloat(args.effectiveHeightPercent)
+        let requestedGeometryMatchesCurrent = window.isFullscreen &&
+            (
+                requestedCenteredFullscreen
+                    ? window.isCenteredFullscreen &&
+                    window.noOuterGapsInFullscreen == args.noOuterGaps &&
+                    window.centeredFullscreenWidthPercent == requestedWidthPercent &&
+                    window.centeredFullscreenHeightPercent == requestedHeightPercent
+                    : !window.isCenteredFullscreen
+            )
         let newState: Bool = switch args.toggle {
             case .on: true
             case .off: false
-            case .toggle: !window.isFullscreen
+            case .toggle: !requestedGeometryMatchesCurrent
         }
-        if newState == window.isFullscreen {
+        let newCenteredFullscreen = newState && requestedCenteredFullscreen
+        let explicitAnimationPreferenceChanges = requestedGeometryMatchesCurrent &&
+            requestedCenteredFullscreen &&
+            args.animation.map { $0 != window.centeredFullscreenAnimationEnabled } == true
+        let isNoop = newState
+            ? requestedGeometryMatchesCurrent && !explicitAnimationPreferenceChanges
+            : !window.isFullscreen
+        if isNoop {
             switch args.failIfNoop {
                 case true: return .fail
                 case false:
@@ -25,8 +45,32 @@ struct FullscreenCommand: Command {
                     return .succ(io.err(msg))
             }
         }
+
+        let transitionAnimationEnabled = if newCenteredFullscreen {
+            args.animation ?? (requestedGeometryMatchesCurrent ? window.centeredFullscreenAnimationEnabled : false)
+        } else if wasCenteredFullscreen {
+            args.animation ?? window.centeredFullscreenAnimationEnabled
+        } else {
+            false
+        }
+        let geometryWillChange = newState ? !requestedGeometryMatchesCurrent : window.isFullscreen
+        window.shouldAnimateNextLayoutFromCentered =
+            geometryWillChange && (wasCenteredFullscreen || newCenteredFullscreen) && transitionAnimationEnabled
+        if explicitAnimationPreferenceChanges && !transitionAnimationEnabled {
+            window.cancelCenteredFullscreenTransition()
+        }
         window.isFullscreen = newState
-        window.noOuterGapsInFullscreen = args.noOuterGaps
+        window.isCenteredFullscreen = newCenteredFullscreen
+        window.noOuterGapsInFullscreen = newState && args.noOuterGaps
+        if newCenteredFullscreen {
+            window.centeredFullscreenWidthPercent = requestedWidthPercent
+            window.centeredFullscreenHeightPercent = requestedHeightPercent
+            window.centeredFullscreenAnimationEnabled = transitionAnimationEnabled
+        } else {
+            window.centeredFullscreenWidthPercent = 50
+            window.centeredFullscreenHeightPercent = 50
+            window.centeredFullscreenAnimationEnabled = false
+        }
 
         // Focus on its own workspace
         window.markAsMostRecentChild()

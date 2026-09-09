@@ -29,6 +29,7 @@ struct MacosNativeFullscreenCommand: Command {
                             "Tip: use --fail-if-noop to exit with non-zero exit code"))
             }
         }
+        window.cancelCenteredFullscreenTransition()
         window.asMacWindow().setNativeFullscreen(newState)
         guard let workspace = window.visualWorkspace else {
             return .fail(io.err(windowIsntPartOfTree(window)))

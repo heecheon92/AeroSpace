@@ -40,7 +40,22 @@ import AppKit
                 }
             }
             if window == nil {
-                window = location.findWindowRecursively(in: workspace.rootTilingContainer, virtual: false, fullscreenCoversAll: true)
+                let fullscreenWindow = workspace.rootTilingContainer.mostRecentWindowRecursive
+                let centeredFullscreenRect: Rect? = if let fullscreenWindow,
+                                                       fullscreenWindow.isFullscreen,
+                                                       fullscreenWindow.isCenteredFullscreen
+                {
+                    try? await fullscreenWindow.getAxRect(.cancellable)
+                } else {
+                    nil
+                }
+                try checkCancellation()
+                window = location.findWindowRecursively(
+                    in: workspace.rootTilingContainer,
+                    virtual: false,
+                    fullscreenCoversAll: true,
+                    centeredFullscreenRect: centeredFullscreenRect,
+                )
             }
             if let window {
                 try await runLightSession(.focusFollowsMouse, token) {

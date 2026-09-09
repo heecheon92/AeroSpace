@@ -25,6 +25,7 @@ func movedObs(_: AXObserver, ax: AXUIElement, notif: CFString, _: UnsafeMutableR
 
 @MainActor
 private func moveWithMouse(_ window: Window) async throws { // todo cover with tests
+    window.cancelCenteredFullscreenTransition()
     resetClosedWindowsCache()
     switch window.windowParentCases {
         case .floatingWindowsContainer:
@@ -52,8 +53,12 @@ private func moveTilingWindow(_ window: Window) {
     window.lastAppliedLayoutPhysicalRect = nil
     let mouseLocation = mouseLocation
     let targetWorkspace = mouseLocation.monitorApproximation.activeWorkspace
-    let swapTarget = mouseLocation
-        .findWindowRecursively(in: targetWorkspace.rootTilingContainer, virtual: false, fullscreenCoversAll: false)?
+    let swapTarget = mouseLocation.findWindowRecursively(
+        in: targetWorkspace.rootTilingContainer,
+        virtual: false,
+        fullscreenCoversAll: false,
+        centeredFullscreenRect: nil,
+    )?
         .takeIf { $0 != window }
     if targetWorkspace != window.nodeWorkspace { // Move window to a different monitor
         let index: Int = if let swapTarget, let parent = swapTarget.parent as? TilingContainer, let targetRect = swapTarget.lastAppliedLayoutPhysicalRect {
@@ -90,17 +95,26 @@ extension CGPoint {
         in tree: TilingContainer,
         virtual: Bool,
         fullscreenCoversAll: Bool,
+        centeredFullscreenRect: Rect?,
     ) -> Window? {
+        var excludedWindow: Window?
         if fullscreenCoversAll {
             if let window = tree.mostRecentWindowRecursive, window.isFullscreen {
-                return window
+                if !window.isCenteredFullscreen || centeredFullscreenRect?.contains(self) == true {
+                    return window
+                }
+                excludedWindow = window
             }
         }
-        return _findWindowRecursively(in: tree, virtual: virtual)
+        return _findWindowRecursively(in: tree, virtual: virtual, excluding: excludedWindow)
     }
 
     @MainActor
-    private func _findWindowRecursively(in tree: TilingContainer, virtual: Bool) -> Window? {
+    private func _findWindowRecursively(
+        in tree: TilingContainer,
+        virtual: Bool,
+        excluding excludedWindow: Window?,
+    ) -> Window? {
         let point = self
         let target: TreeNode? = switch tree.layout {
             case .tiles:
@@ -108,12 +122,13 @@ extension CGPoint {
                     (virtual ? $0.lastAppliedLayoutVirtualRect : $0.lastAppliedLayoutPhysicalRect)?.contains(point) == true
                 })
             case .accordion:
-                tree.mostRecentChild
+                tree.mruChildren.first(where: { $0 !== excludedWindow })
         }
         guard let target else { return nil }
         return switch target.tilingTreeNodeCasesOrDie() {
-            case .window(let window): window
-            case .tilingContainer(let container): _findWindowRecursively(in: container, virtual: virtual)
+            case .window(let window): window === excludedWindow ? nil : window
+            case .tilingContainer(let container):
+                _findWindowRecursively(in: container, virtual: virtual, excluding: excludedWindow)
         }
     }
 }
