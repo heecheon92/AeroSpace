@@ -30,6 +30,9 @@ private func _normalizeLayoutReason(workspace: Workspace, windows: [Window]) asy
         switch window.layoutReason {
             case .standard:
                 guard let parent = window.parent else { continue }
+                if isMacosFullscreen || isMacosMinimized || isMacosWindowOfHiddenApp {
+                    window.cancelCenteredFullscreenTransition()
+                }
                 switch true {
                     case isMacosFullscreen:
                         window.layoutReason = .macos(prevParentKind: parent.kind)

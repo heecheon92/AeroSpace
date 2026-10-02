@@ -26,7 +26,8 @@ import AppKit
             try checkCancellation()
             // Ignores macOS menubar dropdown, but, unfortunately, it doesn't ignore non-native menu-like fake windows.
             // todo: It would be cool to somehow reuse isWindowHeuristic logic here
-            if await isAxWindowUnderMouse(location) == false { return }
+            let axWindowUnderMouse = await getAxWindowUnderMouse(location)
+            if axWindowUnderMouse.isWindow == false { return }
             try checkCancellation()
             let workspace = location.monitorApproximation.activeWorkspace
             var window: Window? = nil
@@ -39,8 +40,37 @@ import AppKit
                     break
                 }
             }
+            if window == nil,
+               let windowId = axWindowUnderMouse.windowId,
+               let hitWindow = Window.get(byId: windowId),
+               hitWindow.nodeWorkspace == workspace,
+               hitWindow.isFullscreen,
+               hitWindow.isCenteredFullscreen
+            {
+                switch hitWindow.windowParentCases {
+                    case .tilingContainer:
+                        window = hitWindow
+                    default:
+                        break
+                }
+            }
             if window == nil {
-                window = location.findWindowRecursively(in: workspace.rootTilingContainer, virtual: false, fullscreenCoversAll: true)
+                let fullscreenWindow = workspace.rootTilingContainer.mostRecentWindowRecursive
+                let centeredFullscreenRect: Rect? = if let fullscreenWindow,
+                                                       fullscreenWindow.isFullscreen,
+                                                       fullscreenWindow.isCenteredFullscreen
+                {
+                    try? await fullscreenWindow.getAxRect(.cancellable)
+                } else {
+                    nil
+                }
+                try checkCancellation()
+                window = location.findWindowRecursively(
+                    in: workspace.rootTilingContainer,
+                    virtual: false,
+                    fullscreenCoversAll: true,
+                    centeredFullscreenRect: centeredFullscreenRect,
+                )
             }
             if let window {
                 try await runLightSession(.focusFollowsMouse, token) {
@@ -53,12 +83,20 @@ import AppKit
 }
 
 @concurrent
-private nonisolated func isAxWindowUnderMouse(_ location: CGPoint) async -> Bool? {
+private nonisolated func getAxWindowUnderMouse(_ location: CGPoint) async -> (isWindow: Bool?, windowId: UInt32?) {
     let systemwide = AXUIElementCreateSystemWide()
     var element: AXUIElement?
     if unsafe AXUIElementCopyElementAtPosition(systemwide, Float(location.x), Float(location.y), &element) != .success {
-        return nil
+        return (nil, nil)
     }
-    guard let element else { return nil }
-    return element.get(Ax.parentWindowRecursive) != nil || element.get(Ax.roleAttr) == kAXWindowRole
+    guard let element else { return (nil, nil) }
+    let windowElement: AXUIElement
+    if let parentWindow = element.get(Ax.parentWindowRecursive) {
+        windowElement = parentWindow
+    } else if element.get(Ax.roleAttr) == kAXWindowRole {
+        windowElement = element
+    } else {
+        return (false, nil)
+    }
+    return (true, windowElement.containingWindowId())
 }

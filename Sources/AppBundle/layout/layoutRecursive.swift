@@ -31,13 +31,22 @@ extension TreeNode {
             case .window(let window):
                 if window.windowId != currentlyManipulatedWithMouseWindowId {
                     lastAppliedLayoutVirtualRect = virtual
-                    if window.isFullscreen && window == context.workspace.rootTilingContainer.mostRecentWindowRecursive {
+                    if window.isFullscreen &&
+                        (window.isCenteredFullscreen || window == context.workspace.rootTilingContainer.mostRecentWindowRecursive)
+                    {
                         lastAppliedLayoutPhysicalRect = nil
                         window.layoutFullscreen(context)
                     } else {
-                        lastAppliedLayoutPhysicalRect = physicalRect
+                        let animateFromCentered = window.shouldAnimateNextLayoutFromCentered
+                        window.shouldAnimateNextLayoutFromCentered = false
                         window.isFullscreen = false
-                        window.setAxFrame(point, CGSize(width: width, height: height))
+                        window.isCenteredFullscreen = false
+                        window.noOuterGapsInFullscreen = false
+                        window.centeredFullscreenWidthPercent = 50
+                        window.centeredFullscreenHeightPercent = 50
+                        window.centeredFullscreenAnimationEnabled = false
+                        lastAppliedLayoutPhysicalRect = physicalRect
+                        window.applyLayoutFrame(physicalRect, animateFromCentered: animateFromCentered)
                     }
                 }
             case .tilingContainer(let container):
@@ -92,6 +101,11 @@ extension Window {
         if isFullscreen {
             layoutFullscreen(context)
             isFullscreen = false
+            isCenteredFullscreen = false
+            noOuterGapsInFullscreen = false
+            centeredFullscreenWidthPercent = 50
+            centeredFullscreenHeightPercent = 50
+            centeredFullscreenAnimationEnabled = false
         }
     }
 
@@ -100,7 +114,20 @@ extension Window {
         let monitorRect = noOuterGapsInFullscreen
             ? context.workspace.workspaceMonitor.visibleRect
             : context.workspace.workspaceMonitor.visibleRectPaddedByOuterGaps
-        setAxFrame(monitorRect.topLeftCorner, CGSize(width: monitorRect.width, height: monitorRect.height))
+        let target = isCenteredFullscreen
+            ? centeredFullscreenRect(
+                in: monitorRect,
+                widthPercent: centeredFullscreenWidthPercent,
+                heightPercent: centeredFullscreenHeightPercent,
+            )
+            : monitorRect
+        let animateFromCentered = shouldAnimateNextLayoutFromCentered
+        shouldAnimateNextLayoutFromCentered = false
+        applyLayoutFrame(
+            target,
+            animateFromCentered: animateFromCentered,
+            centeredIn: isCenteredFullscreen ? monitorRect : nil,
+        )
     }
 }
 

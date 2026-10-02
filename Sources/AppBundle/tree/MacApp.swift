@@ -147,6 +147,10 @@ final class MacApp: AbstractApp {
         }
     }
 
+    func cancelSetFrame(_ windowId: UInt32) {
+        setFrameJobs.removeValue(forKey: windowId)?.cancel()
+    }
+
     func setAxFrame(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
         setFrameJobs[windowId] = withWindowAsync(windowId, .cancellable) { [axApp] window, job in
@@ -155,6 +159,24 @@ final class MacApp: AbstractApp {
             }
         }
     }
+    func setAxFrameCentered(_ windowId: UInt32, _ requestedRect: Rect, in monitorRect: Rect) {
+        setFrameJobs.removeValue(forKey: windowId)?.cancel()
+        setFrameJobs[windowId] = withWindowAsync(windowId, .cancellable) { [axApp] window, job in
+            if let currentRect = try AppBundle.getAxRect(window: window, job: job),
+               currentRect.isApproximatelyEqual(to: requestedRect)
+            {
+                return
+            }
+            try disableAnimations(app: axApp.threadGuarded, job) {
+                try setFrame(window, nil, requestedRect.size, job)
+                guard let actualSize = window.get(Ax.sizeAttr) else { return }
+                try job.checkCancellation()
+                let centeredRect = centeredFullscreenRect(in: monitorRect, actualSize: actualSize)
+                try setFrame(window, centeredRect.topLeftCorner, actualSize, job)
+            }
+        }
+    }
+
 
     func setAxFrameForTermination(_ windowId: UInt32, _ topLeft: CGPoint?, _ size: CGSize?) {
         setFrameJobs.removeValue(forKey: windowId)?.cancel()
